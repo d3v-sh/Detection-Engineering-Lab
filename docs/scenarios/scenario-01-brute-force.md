@@ -62,7 +62,7 @@ Two successful logons appear in the window:
 - Rule `92657` — *"Successful Remote Logon Detected - User:\James - NTLM authentication, possible pass-the-hash attack - Possible RDP connection. Verify that KALI is allowed to perform RDP connections"* (level 6)
 - `logonType: 3` (network), `workstationName: KALI`, NTLM V2, source `192.168.31.132`
 
-<img src="docs/screenshots/scenario-01-successful-logon.png" alt="Correlated brute-force alert" width="720">
+<img src="../screenshots/scenario-01-successful-logon.png" alt="Correlated brute-force alert" width="720">
 
 ---
 
