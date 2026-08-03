@@ -1,56 +1,57 @@
-# SOC-Lab: Active Directory Threat Detection with Wazuh
+# Detection Engineering Lab
 
-> A self-hosted SOC lab simulating an enterprise Windows environment (Domain Controller + Workstation), monitored with a containerized Wazuh SIEM stack, and validated against real attack techniques executed from a dedicated attacker VM.
+**AD + Wazuh SIEM lab testing real attacks against default detection rules — documenting what's caught, what's missed, and the fixes applied.**
 
-**Status:** 🚧 Active — infrastructure deployed, telemetry pipeline (Sysmon + Wazuh agents) confirmed, 1 attack scenario executed and documented.
-
----
-
-## What this project is
-
-Most "I deployed Wazuh" projects stop at the dashboard screenshot. This one is built around a simple question for each attack technique: **did the SIEM actually catch it, and if not, why not?**
-
-The lab consists of:
-- A Windows Server 2022 **Domain Controller** (AD DS + DNS)
-- A domain-joined Windows 10 **Workstation**
-- A Dockerized **Wazuh** stack (manager + indexer + dashboard) as the SIEM
-- A **Kali** attacker VM used to run real, known techniques against the environment
-
-Every attack executed is documented as: technique → command → what Wazuh saw (or didn't) → remediation. See [Attack Documentation](#attack-documentation--remediation) below.
+`wazuh` `siem` `detection-engineering` `active-directory` `mitre-attack` `blue-team` `purple-team`
 
 ---
 
-## Architecture & Setup
+## What this is
 
-Network diagram, VM roles, IP scheme, the setup process, problems hit along the way, and lessons learned all live here:
+Most "I deployed a SIEM" projects end at a dashboard screenshot. This one is built around one question, asked separately for every attack technique run against the lab:
 
-**→ [`docs/architecture-and-setup.md`](./docs/architecture-and-setup.md)**
+**Did the SIEM actually catch it — and if the classification was wrong, why?**
 
-Quick summary: 4 VMs on a shared VirtualBox NAT Network, Wazuh deployed via Docker Compose, Sysmon (SwiftOnSecurity config) on both Windows hosts feeding into Wazuh agents, static IPs across the board.
+The environment: a Windows Server 2022 **Domain Controller**, a domain-joined Windows 10 **Workstation**, a Dockerized **Wazuh** SIEM stack, and a **Kali** attacker box on a separate physical machine, attacking over a deliberately pivot-required network layout (attacker → workstation → DC).
+
+📐 **[Full architecture & setup, including every problem hit along the way →](./docs/architecture-and-setup.md)**
+
+![Architecture](docs/architecture.png)
 
 ---
 
-## Attack Documentation & Remediation
+## Result: Scenario 1 — SMB Brute Force
 
-Each scenario is documented independently — technique used, exact command, expected telemetry, what Wazuh actually detected, and the remediation/tuning applied.
+*(Full write-up with all screenshots and raw event detail: **[docs/scenarios/scenario-01-brute-force.md](./docs/scenarios/scenario-01-brute-force.md)**)*
 
-| # | Scenario | MITRE ATT&CK ID | Detected? | Doc |
-|---|---|---|---|---|
-| 1 | SMB Brute Force (workstation) | T1110 | ✅ | [scenario-01](./docs/scenarios/scenario-01-brute-force.md) |
+**Setup:** `netexec` ran a credential-guessing attack over SMB against the workstation (`10.0.2.6`) using a local test account and `rockyou.txt`.
 
-*(New rows are added here only once a scenario has actually been executed and documented — this table reflects completed work, not a planned roadmap.)*
+**What Wazuh caught:**
 
-*(Table and files grow as scenarios are executed — see [`docs/mitre-coverage.md`](./docs/mitre-coverage.md) for the full rollup.)*
+| Layer | Result |
+|---|---|
+| Individual failed logons | ✅ Rule `60122` fired per attempt — ~1,800+ events captured |
+| Correlated attack pattern | ✅ Rule `60204` – *"Multiple Windows Logon Failures"* (level 10) — a real correlated alert, not just raw logs |
+| Successful logon | ⚠️ Detected, but **mislabeled** — see finding below |
 
-Legend: ✅ Detected · ⚠️ Partially detected · ❌ Not detected · ⏳ Not yet run
+<img src="docs/screenshots/scenario-01-correlated-alert.png" alt="Correlated brute-force alert" width="720">
+
+**The finding worth noting:** the eventual successful logon was flagged by Wazuh's default ruleset as *"possible pass-the-hash attack"* and *"possible RDP connection."* Neither was true — it was a plain NTLM/SMB logon from `netexec`. The rule fires on **any** NTLM network logon rather than on indicators actually specific to pass-the-hash or RDP. In a real environment, this rule as shipped would generate false "possible PtH" alerts on ordinary admin tooling and service accounts — a genuine alert-fatigue risk, and a concrete tuning target.
+
+**Verdict:** ✅ Detected at both the raw and correlated level. ⚠️ Successful-logon classification needs tuning before it'd be production-trustworthy.
 
 ---
 
 ## MITRE ATT&CK Coverage
 
-Full technique-to-detection rollup, independent of reading each scenario in full:
+| Technique | ID | Verdict |
+|---|---|---|
+| Brute Force | T1110 | ✅ Detected (raw + correlated alert) |
+| Domain Account Auth (NTLM) | T1078.002 | ⚠️ Detected but over-classified as PtH/RDP |
 
-**→ [`docs/mitre-coverage.md`](./docs/mitre-coverage.md)**
+📊 **[Full coverage rollup and methodology notes →](./docs/mitre-coverage.md)**
+
+*(This table only lists techniques actually executed — it's a record, not a roadmap.)*
 
 ---
 
@@ -58,21 +59,48 @@ Full technique-to-detection rollup, independent of reading each scenario in full
 
 | Component | Choice |
 |---|---|
-| Hypervisor | Oracle VirtualBox (shared NAT Network) |
-| SIEM | Wazuh 4.14.x (Docker single-node: manager + indexer + dashboard) |
+| Hypervisor | Oracle VirtualBox (NAT Network + bridged pivot boundary) |
+| SIEM | Wazuh 4.14.x — Docker single-node (manager + indexer + dashboard) |
 | Endpoint telemetry | Windows Event Logs + Sysmon (SwiftOnSecurity config) |
 | Domain environment | Windows Server 2022 (AD DS, DNS) + Windows 10 workstation |
-| Attacker tooling | Kali Linux |
+| Attacker tooling | Kali Linux, `netexec` |
+
+---
+
+## A Few Lessons From Building This
+
+The setup process surfaced as many real problems as the attacks did — full detail in [architecture-and-setup.md](./docs/architecture-and-setup.md#problems-faced-during-setup), highlights:
+
+- Ubuntu Server's installer doesn't allocate full disk to the root LV by default — a "30GB" VM can silently run on 14GB until `lvextend` fixes it.
+- VirtualBox's **NAT** and **NAT Network** modes are not interchangeable — plain NAT isolates each VM into its own private network, even if subnets happen to overlap.
+- "No internet" can mean routing, DNS, or missing DNS forwarders — three different fixes, and `ping <ip>` vs `ping <name>` is the fastest way to tell which.
+- When repeated `dpkg` state corruption kept blocking a clean Wazuh install, switching to the official Docker deployment resolved an entire *class* of problems rather than patching them one at a time.
+
+---
+
+## Repository Structure
+
+```
+.
+├── README.md                          — you are here
+├── docs/
+│   ├── architecture-and-setup.md      — diagram, setup steps, every problem + fix, lessons learned
+│   ├── mitre-coverage.md              — full technique-to-detection rollup
+│   ├── architecture.svg
+│   ├── screenshots/
+│   └── scenarios/
+│       └── scenario-01-brute-force.md — full attack write-up: command, telemetry, verdict, remediation
+```
 
 ---
 
 ## Future Work
 
-Infrastructure and tooling additions planned for this lab — not attacks (those are only added to the tables above once actually executed):
+Infrastructure additions planned — **not** attacks (those only get added above once actually executed):
 
-- [ ] Add WebGoat (Dockerized) as a dedicated vulnerable web target to extend detection coverage into web attack techniques
-- [ ] Publish a MITRE ATT&CK Navigator layer for visual coverage
-- [ ] Add active-response automation infrastructure (e.g., auto-block capability on brute-force detection)
+- [ ] WebGoat (Dockerized) as a dedicated vulnerable web target, to extend coverage into web attack techniques
+- [ ] Published MITRE ATT&CK Navigator layer for a visual coverage heat-map
+- [ ] Active-response automation (e.g., auto-block on confirmed brute-force detection)
 
 ---
 
