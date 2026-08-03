@@ -43,13 +43,13 @@ netexec smb 10.0.2.6 -u James -p /usr/share/wordlists/rockyou.txt --local-auth
 **Rule fired:** `60122` — *"Logon Failure - Unknown user or bad password"* (level 5)
 Fired once per failed attempt. Volume during the attack window ran into the thousands of individual events (~1,800+ in the captured window alone).
 
-📸 `docs/screenshots/scenario-01-failed-logons.png`
+<img src="docs/screenshots/scenario-01-failed-logon.png" alt="Correlated brute-force alert" width="720">
 
 ### 2. Correlated brute-force alert — detected
 **Rule fired:** `60204` — *"Multiple Windows Logon Failures"* (level 10)
 This is the important result: Wazuh's default ruleset didn't just log each failure independently — it correlated the burst into a single higher-severity alert. This is what would actually surface to an analyst's queue rather than requiring them to manually notice a pattern across thousands of raw events.
 
-📸 `docs/screenshots/scenario-01-correlated-alert.png`
+<img src="docs/screenshots/scenario-01-correlated-logon.png" alt="Correlated brute-force alert" width="720">
 
 ### 3. Successful logon(s) — detected, but over-classified
 Two successful logons appear in the window:
@@ -62,7 +62,7 @@ Two successful logons appear in the window:
 - Rule `92657` — *"Successful Remote Logon Detected - User:\James - NTLM authentication, possible pass-the-hash attack - Possible RDP connection. Verify that KALI is allowed to perform RDP connections"* (level 6)
 - `logonType: 3` (network), `workstationName: KALI`, NTLM V2, source `192.168.31.132`
 
-📸 `docs/screenshots/scenario-01-successful-logon.png`
+<img src="docs/screenshots/scenario-01-successful-logon.png" alt="Correlated brute-force alert" width="720">
 
 ---
 
