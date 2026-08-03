@@ -16,7 +16,7 @@ The environment: a Windows Server 2022 **Domain Controller**, a domain-joined Wi
 
 📐 **[Full architecture & setup, including every problem hit along the way →](./docs/architecture-and-setup.md)**
 
-![Architecture](docs/architecture.png)
+![Architecture](docs/architecture.svg)
 
 ---
 
