@@ -40,6 +40,8 @@ The environment: a Windows Server 2022 **Domain Controller**, a domain-joined Wi
 
 **Verdict:** ✅ Detected at both the raw and correlated level. ⚠️ Successful-logon classification needs tuning before it'd be production-trustworthy.
 
+<img src="docs/screenshots/scenario-01-successful-logon.png" alt="Correlated brute-force alert" width="720">
+
 ---
 
 ## MITRE ATT&CK Coverage
