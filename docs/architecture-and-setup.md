@@ -6,7 +6,10 @@
 
 ![Architecture](docs/architecture.png)
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 1c1b4325ae8140a5d60d967aa08ca0dc62e82060
 
 Note: the attacker VM runs on a second physical machine (not the VirtualBox host) to keep the host's 16GB RAM budget free for the four SIEM/AD VMs, and to approximate a more realistic network boundary between attacker and target than co-locating everything on one hypervisor.
 
