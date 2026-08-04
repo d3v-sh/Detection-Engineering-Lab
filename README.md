@@ -42,6 +42,29 @@ The environment: a Windows Server 2022 **Domain Controller**, a domain-joined Wi
 
 <img src="docs/screenshots/scenario-01-successful-logon.png" alt="Correlated brute-force alert" width="720">
 
+**Update — Active Response attempted:** wired Wazuh's Active Response module to auto-block the attacker IP on detection. Execution triggered correctly on every alert, but the firewall rule was never actually created — traced to a payload-parsing limitation in Wazuh's shipped Windows AR script when handling large, nested eventchannel alerts. Full root-cause writeup: [scenario-01-brute-force.md#update-active-response-automated-containment--attempted](./docs/scenarios/scenario-01-brute-force.md#update-active-response-automated-containment--attempted).
+
+---
+
+## Result: Scenario 2 — Password Spray Across Multiple Accounts + Persistence Attempt
+
+*(Full write-up: **[docs/scenarios/scenario-02-password-spray.md](./docs/scenarios/scenario-02-password-spray.md)**)*
+
+**Setup:** a single-password spray via `netexec` against three domain accounts (`James`, `Daniel`, `Alisha`) targeting the workstation only — the Domain Controller sits behind a pivot boundary and was not directly reachable, by design.
+
+**What happened:**
+
+| Tier | Accounts | Result |
+|---|---|---|
+| Confirmed compromised | `Alisha` | ✅ Successful NTLM logon detected (rule `92652`) |
+| Targeted, not breached | `James`, `Daniel` | ✅ Failed logons detected (rule `60122`/`100010`) |
+
+**Post-compromise:** attempted to establish persistence on the compromised account via a remote scheduled task (Impacket `atexec`). Rejected with `rpc_s_access_denied` — `Alisha` had valid credentials but no local admin rights on the target, so the attack chain stopped at the privilege boundary, not the detection layer.
+
+**The finding worth noting:** the *rejected* persistence attempt generated no distinct Wazuh-visible telemetry of its own — a SOC would see the successful logon, but nothing showing what the attacker tried next unless task-scheduler-specific auditing is separately enabled. A real, if narrow, visibility gap.
+
+**Verdict:** ✅ Spray and scoping fully detected across all three accounts. ✅ Privilege boundary held (real control, working as intended). ⚠️ Detection gap identified in visibility into rejected persistence attempts.
+
 ---
 
 ## MITRE ATT&CK Coverage
@@ -50,6 +73,8 @@ The environment: a Windows Server 2022 **Domain Controller**, a domain-joined Wi
 |---|---|---|
 | Brute Force | T1110 | ✅ Detected (raw + correlated alert) |
 | Domain Account Auth (NTLM) | T1078.002 | ⚠️ Detected but over-classified as PtH/RDP |
+| Password Spraying | T1110.003 | ✅ Detected across all targeted accounts |
+| Scheduled Task/Job (attempted) | T1053.005 | ❌ Blocked by privilege boundary; no distinct detection telemetry for the attempt itself |
 
 📊 **[Full coverage rollup and methodology notes →](./docs/mitre-coverage.md)**
 
@@ -91,7 +116,8 @@ The setup process surfaced as many real problems as the attacks did — full det
 │   ├── architecture.svg
 │   ├── screenshots/
 │   └── scenarios/
-│       └── scenario-01-brute-force.md — full attack write-up: command, telemetry, verdict, remediation
+│       ├── scenario-01-brute-force.md      — attack + detection + active-response containment attempt
+│       └── scenario-02-password-spray.md   — multi-account spray, scoping, persistence attempt
 ```
 
 ---
@@ -102,7 +128,7 @@ Infrastructure additions planned — **not** attacks (those only get added above
 
 - [ ] WebGoat (Dockerized) as a dedicated vulnerable web target, to extend coverage into web attack techniques
 - [ ] Published MITRE ATT&CK Navigator layer for a visual coverage heat-map
-- [ ] Active-response automation (e.g., auto-block on confirmed brute-force detection)
+- [ ] Task-scheduler / "Other Object Access Events" auditing to close the persistence-attempt visibility gap found in Scenario 2
 
 ---
 

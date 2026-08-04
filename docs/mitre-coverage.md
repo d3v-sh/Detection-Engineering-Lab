@@ -10,6 +10,9 @@ Legend: ✅ Detected · ⚠️ Partially detected · ❌ Not detected · ⏳ Not
 |---|---|---|---|---|
 | Brute Force | T1110 | Credential Access | [Scenario 1](./scenarios/scenario-01-brute-force.md) | ✅ Detected (raw + correlated alert) |
 | Domain Accounts (successful auth) | T1078.002 | Persistence / Priv Esc / Initial Access | [Scenario 1](./scenarios/scenario-01-brute-force.md) | ⚠️ Detected but over-classified as PtH/RDP |
+| Password Spraying | T1110.003 | Credential Access | [Scenario 2](./scenarios/scenario-02-password-spray.md) | ✅ Detected across all 3 targeted accounts |
+| Valid Accounts (Domain) | T1078.002 | Persistence / Priv Esc / Initial Access / Lateral Movement | [Scenario 2](./scenarios/scenario-02-password-spray.md) | ✅ Detected (rule 92652) |
+| Scheduled Task/Job (attempted) | T1053.005 | Persistence / Priv Esc | [Scenario 2](./scenarios/scenario-02-password-spray.md) | ❌ Not detected — blocked by privilege boundary, but no distinct telemetry for the attempt itself |
 
 *(Rows are added only after a technique has actually been executed against the lab — this table reflects real coverage, not a planned roadmap.)*
 
@@ -17,11 +20,12 @@ Legend: ✅ Detected · ⚠️ Partially detected · ❌ Not detected · ⏳ Not
 
 ## Coverage Summary
 
-One scenario executed to date, covering two effective techniques (the intended brute-force attack, plus an unplanned but observed successful-authentication classification issue):
+Two scenarios executed to date:
 
-- **1/1** attack scenarios run resulted in successful detection at the raw-event level
-- **1/1** resulted in a correlated, analyst-actionable alert (not just raw events)
-- **1** rule-accuracy gap identified: successful NTLM network logons are labeled "possible pass-the-hash" / "possible RDP" by default, regardless of whether either is actually occurring — see [Scenario 1](./scenarios/scenario-01-brute-force.md#verdict--analysis) for detail
+- **2/2** attack scenarios run resulted in successful detection at the raw-event level
+- **2/2** resulted in an analyst-actionable alert (correlated or direct), not just raw events
+- **2** rule-accuracy gaps identified: (1) successful NTLM network logons labeled "possible pass-the-hash"/"possible RDP" regardless of actual technique — see [Scenario 1](./scenarios/scenario-01-brute-force.md#verdict--analysis); (2) rejected remote scheduled-task creation attempts (RPC-level authorization failure) generate no distinct Wazuh-visible telemetry — see [Scenario 2](./scenarios/scenario-02-password-spray.md#findings)
+- **1** privilege-boundary success: a compromised domain account was correctly blocked from establishing persistence because it lacked local admin rights on the target — a control working as intended, independent of detection tooling
 
 This summary is updated after each scenario is completed, not written in advance.
 
