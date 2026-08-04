@@ -8,7 +8,7 @@
 | **Related techniques observed** | T1550.002 (Pass the Hash — flagged, see analysis), T1078.002 (Domain Accounts), T1021.001 (RDP — flagged, see analysis) |
 | **Target** | Workstation — `10.0.2.6` (`DESKTOP-EE3IFE3.company.local`) |
 | **Attacker Tool** | netexec (SMB module) |
-| **Verdict** | ✅ Detected — individual failures logged, correlated brute-force alert fired, successful logon flagged (with caveats — see Analysis) |
+| **Verdict** | ✅ Detected — individual failures logged, correlated brute-force alert fired, successful logon flagged (with caveats — see Analysis). ⚠️ Automated containment attempted but not achieved — see Update below. |
 
 ---
 
@@ -83,6 +83,56 @@ No custom rule was required for **detection** — 60122 and 60204 handled this c
 
 **Tuning opportunity identified (not yet applied — flagged for Future Work):**
 Narrow or split rule `92657`/`92652`'s conditions so that "possible pass-the-hash" / "possible RDP" labels only apply when corroborating indicators are present (e.g., NTLM auth *without* an expected Kerberos exchange on a domain that should be using Kerberos, or an actual RDP-associated port/logon type), rather than firing on every NTLM network logon. As shipped, this rule's specificity is low enough to produce false-positive-flavored labeling on benign/expected authentication.
+
+---
+
+## Update: Active Response (Automated Containment) — Attempted
+
+Following the detection results above, an attempt was made to close the loop from *detection* to *automated containment* using Wazuh's Active Response module (`netsh` command, Windows Firewall backend).
+
+### Configuration
+
+```xml
+<active-response>
+  <command>netsh</command>
+  <location>local</location>
+  <rules_id>60122</rules_id>
+  <timeout>600</timeout>
+</active-response>
+```
+
+Bound to rule `60122` (individual failed-logon events) rather than the correlated `60204` alert, since composite/frequency rules in Wazuh do not reliably carry a `srcip` field.
+
+### Result: Execution confirmed, containment did not occur
+
+- ✅ `wazuh-execd` correctly triggered on every matching `60122` event (confirmed via rule `657` — *"Active response: active-response/bin/netsh.exe - add"* — firing in lockstep with the brute-force attempts).
+- ❌ No corresponding Windows Firewall rule was ever created. Checked directly on the endpoint:
+  ```powershell
+  netsh advfirewall firewall show rule name=all > C:\fwrules.txt
+  Select-String -Path C:\fwrules.txt -Pattern "192.168.31.132"
+  ```
+  Returned nothing, across multiple attack runs.
+- The agent's active-response log showed a recurring error on the relevant invocations:
+  ```
+  active-response/bin/netsh.exe: Cannot read 'srcip' from data
+  ```
+
+### Root cause
+
+The raw alert payload passed to the AR script is large and deeply nested — the Windows Security Event 4625 log entry is embedded as an escaped string (`previous_output`) ahead of the actual `srcip` key in the JSON structure Wazuh's `netsh.exe` AR script parses. This appears to be a parsing fragility in Wazuh's shipped Windows Active Response scripts when handling verbose eventchannel-sourced alerts, rather than a misconfiguration on this lab's part — the `srcip` field *is* present in the payload (confirmed by inspecting the raw alert JSON directly), but the script's parser fails to locate it reliably in this payload shape.
+
+Ruled out before reaching this conclusion:
+- Confirmed the Wazuh agent service runs as `LocalSystem` (sufficient privilege to modify firewall rules).
+- Confirmed the AR binary (`netsh.exe`, Wazuh's own 206KB script, not the OS binary) exists at the correct path on the agent.
+- Attempted a decoder-level fix to guarantee `srcip` population (`<parent>windows_eventchannel</parent>` custom decoder) — this failed outright, since `windows_eventchannel` is a compiled-in decoder plugin, not an XML-extensible one; the manager refused to start (`Parent decoder name invalid`) until the change was reverted.
+
+### Verdict on containment
+
+⚠️ **Not achieved in this lab.** Detection and execd triggering are fully functional; the final firewall-block step is blocked by a payload-parsing limitation in Wazuh's default Windows AR script for eventchannel-sourced alerts. This is treated as a genuine finding rather than a gap in setup: automated containment for Windows endpoints via this specific AR path is less turnkey than the Linux `firewall-drop`/iptables path, which the software's own documentation examples are built around.
+
+### What this demonstrates
+
+Rather than a clean "it worked" result, this is a more realistic engineering outcome: a detect → respond pipeline was correctly wired end-to-end at the configuration and triggering level, the specific failure point was isolated to a single, well-defined cause (payload parsing in a vendor-shipped script) through direct evidence (agent logs, firewall rule enumeration, privilege checks) rather than guesswork, and a plausible fix (decoder-level field mapping) was attempted, found infeasible for a structural reason (compiled decoder), and reverted cleanly without leaving the manager in a broken state.
 
 ---
 
