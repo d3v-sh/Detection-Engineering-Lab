@@ -67,6 +67,32 @@ The environment: a Windows Server 2022 **Domain Controller**, a domain-joined Wi
 
 ---
 
+---
+ 
+## Result: Scenario 3 — Phishing Email Analysis (Static Triage)
+ 
+*(Full write-up: **[docs/scenarios/scenario-03-phishing-email-analysis.md](./docs/scenarios/scenario-03-phishing-email-analysis.md)**)*
+ 
+A departure from the lab-attack format above: this scenario is **cold analyst triage of a real-world phishing sample** (via PhishingPot), not an attack executed against the lab's own infrastructure. Same investigative discipline applied — extract, verify independently, reach a documented verdict.
+ 
+**Sample:** a fake Microsoft "unusual sign-in activity" alert, spoofing three unrelated domains across the display name, From address, and envelope/HELO domain in a single message.
+ 
+**Key findings:**
+ 
+| Check | Result |
+|---|---|
+| SPF / DKIM / DMARC | ❌ All three failed or errored — should never have reached an inbox |
+| Sender IP & envelope domain (VirusTotal) | Clean (0/91, 0/98) |
+| Tracking-pixel domain (VirusTotal) | **10-11/92 vendors flagged malicious/phishing** |
+| Domain lifecycle (WHOIS) | 23 IP changes across 3 years — disposable, rapidly-cycled infrastructure |
+ 
+**The finding worth noting:** the sending infrastructure looked clean on reputation checks — the actual flagged-malicious infrastructure was a hidden 1×1 tracking pixel, not the delivery path itself. Checking only sender IP/domain reputation would have under-classified this email. The message also embeds several hundred lines of random multilingual "word salad" text purely to dilute spam-filter scoring — a filter-evasion technique distinct from anything seen in Scenarios 1-2.
+ 
+**Verdict:** ✅ Confirmed phishing, corroborated by multiple independent sources, no single indicator treated as sufficient alone.
+ 
+---
+
+
 ## MITRE ATT&CK Coverage
 
 | Technique | ID | Verdict |
