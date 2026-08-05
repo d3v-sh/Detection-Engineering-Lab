@@ -73,6 +73,7 @@ Extracted directly from the raw `.eml` source (`Authentication-Results`, `Receiv
 <img src="../screenshots/scenario-03-vt-tracking-domain-malicious.png" alt="VirusTotal malicious result for tracking pixel domain" width="720">
 
 📸 `docs/screenshots/scenario-03-whois-domain-lifecycle.png` — WHOIS record showing the domain's disposable/rapidly-cycled hosting history
+
 <img src="../screenshots/scenario-03-whois-domain-lifecycle.png" alt="WHOIS record showing domain deleted and available again, 23 IP changes" width="720">
 
 **Key finding from verification:** the sending IP and envelope domain showed as clean, while the *tracking pixel domain* was clearly and independently flagged as malicious by multiple vendors. This is a useful lesson in scope: checking only the sender's IP/domain would have under-classified this email — the actual malicious infrastructure was the secondary tracking link, not the delivery path.
