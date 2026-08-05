@@ -64,6 +64,7 @@ Extracted directly from the raw `.eml` source (`Authentication-Results`, `Receiv
 | `thebandalisty.com` | WHOIS (DomainTools) | Domain **deleted and available again** — 23 IP changes across 23 unique addresses and 6 hosting changes in 3 years, consistent with disposable, rapidly-cycled attacker infrastructure rather than a legitimate long-standing domain |
 
 📸 `docs/screenshots/scenario-03-vt-sender-ip-clean.png` — VirusTotal result for sender IP `89.144.44.2`, showing 0/91 detections
+
 <img src="../screenshots/scenario-03-vt-sender-ip-clean.png" alt="VirusTotal clean result for sender IP" width="720">
 
 📸 docs/screenshots/scenario-03-hidden-tracking-link-source.png — raw .eml source in Sublime Text showing the hidden 1×1 tracking pixel (visibility:hidden) and its embedded URL pointing to thebandalisty.com/track/...
